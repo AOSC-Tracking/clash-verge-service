@@ -79,7 +79,7 @@ pub fn stop_clash() -> Result<()> {
 
     let mut system = System::new();
     system.refresh_all();
-    let procs = system.processes_by_name("verge-mihomo");
+    let procs = system.processes_by_name("mihomo");
     for proc in procs {
         proc.kill();
     }
