@@ -78,7 +78,7 @@ pub fn stop_clash() -> Result<()> {
     arc.info = None;
 
     let system = System::new_with_specifics(RefreshKind::new().with_processes(ProcessRefreshKind::everything()));
-    let procs = system.processes_by_name("verge-mihomo");
+    let procs = system.processes_by_name("mihomo");
     for proc in procs {
         proc.kill();
     }
