@@ -11,11 +11,11 @@ name = "clash-verge-service"
 path = "src/main.rs"
 
 [[bin]]
-name = "install-service"
+name = "clash-verge-install-service"
 path = "src/install.rs"
 
 [[bin]]
-name = "uninstall-service"
+name = "clash-verge-uninstall-service"
 path = "src/uninstall.rs"
 
 [dependencies]
