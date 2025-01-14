@@ -32,6 +32,7 @@ serde = { version = "1.0.217", features = ["derive"] }
 sysinfo = "0.33.1"
 nix = "0.25.1"
 libc = "0.2.169"
+which = "7"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 openssl = { version = "0.10.71", features = ["vendored"] }
