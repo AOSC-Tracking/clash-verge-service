@@ -118,12 +118,11 @@ fn main() -> Result<(), Error> {
     use std::fs::File;
     use std::io::Write;
     use std::path::Path;
+    use which::which;
 
     let debug = env::args().any(|arg| arg == "--debug");
 
-    let service_binary_path = env::current_exe()
-        .unwrap()
-        .with_file_name("clash-verge-service");
+    let service_binary_path = which("clash-verge-service")?;
 
     if !service_binary_path.exists() {
         return Err(anyhow::anyhow!("clash-verge-service binary not found"));
