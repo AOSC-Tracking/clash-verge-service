@@ -192,6 +192,6 @@ pub fn init_signal_handler() {
 extern "C" fn handle_sigchld(_: i32) {
     unsafe {
         // 循环等待所有已终止的子进程
-        while libc::waitpid(-1, std::ptr::null_mut(), libc::WNOHANG) > 0 {}
+        while nix::libc::waitpid(-1, std::ptr::null_mut(), nix::libc::WNOHANG) > 0 {}
     }
 }
