@@ -2,11 +2,14 @@ use super::{
     data::{ClashStatus, CoreManager, MihomoStatus, StartBody, StatusInner},
     process,
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use once_cell::sync::Lazy;
 use std::{
     collections::HashMap,
+    fs::{self, create_dir_all},
+    path::Path,
     sync::{atomic::Ordering, Arc, Mutex},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 impl CoreManager {
@@ -32,17 +35,16 @@ impl CoreManager {
             None => return Err("Runtime config is not set".to_string()),
         };
 
-        let bin_path = config.bin_path.as_str();
         let config_dir = config.config_dir.as_str();
         let config_file = config.config_file.as_str();
         let args = vec!["-d", config_dir, "-f", config_file, "-t"];
 
         println!(
-            "Testing config file with bin_path: {}, config_dir: {}, config_file: {}",
-            bin_path, config_dir, config_file
+            "Testing config file with config_dir: {}, config_file: {}",
+            config_dir, config_file
         );
 
-        let result = process::spawn_process_debug(bin_path, &args)
+        let result = process::spawn_process_debug("/usr/bin/mihomo", &args)
             .map_err(|e| format!("Failed to execute config test: {}", e))?;
 
         let (_pid, output, _exit_code) = result;
@@ -137,23 +139,41 @@ impl CoreManager {
                 .clone();
             let config = config.ok_or(anyhow!("Runtime config is not set"))?;
 
-            let bin_path = config.bin_path.as_str();
-            let config_dir = config.config_dir.as_str();
-            let config_file = config.config_file.as_str();
-            let log_file = config.log_file.as_str();
-            let args = vec!["-d", config_dir, "-f", config_file];
+            let config_dir_str = config.config_dir.as_str();
+            let config_file_str = config.config_file.as_str();
+
+            let config_dir = Path::new(config_dir_str).canonicalize()?;
+            let config_file = Path::new(config_file_str).canonicalize()?;
+
+            if !config_dir.starts_with("/home") || !config_file.starts_with("/home") {
+                bail!("`config_dir' and `config_file' must be prefixed by `/home'");
+            }
+
+            create_dir_all(&config_dir)?;
+
+            let args = vec!["-d", &config_dir_str, "-f", config_file_str];
+
+            let log_dir = Path::new("/var/log/clash-verge-service");
+            create_dir_all(log_dir)?;
+
+            let log_path = log_dir.join(format!(
+                "log.{}",
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+            ));
+            let log_file = fs::File::create(&log_path)?;
 
             println!(
-                "Starting mihomo with bin_path: {}, config_dir: {}, config_file: {}, log_file: {}",
-                bin_path, config_dir, config_file, log_file
+                "Starting mihomo with config_dir: {}, config_file: {}, log_file: {}",
+                config_dir.display(),
+                config_file.display(),
+                log_path.display()
             );
 
-            // Open log file
-            let log = std::fs::File::create(log_file)
-                .with_context(|| format!("Failed to open log file: {}", log_file))?;
-
             // Spawn process
-            let pid = process::spawn_process(bin_path, &args, log)?;
+            let pid = process::spawn_process("/usr/bin/mihomo", &args, log_file)?;
             println!("Mihomo started with PID: {}", pid);
 
             // Update mihomo status
@@ -227,12 +247,15 @@ impl CoreManager {
             .unwrap()
             .running_pid
             .load(Ordering::Relaxed) as u32;
-        
+
         match process::find_processes("mihomo") {
             Ok(pids) => {
                 // 直接在迭代过程中过滤和终止
-                let kill_count = pids.into_iter()
-                    .filter(|&pid| pid != current_pid && (tracked_mihomo_pid <= 0 || pid != tracked_mihomo_pid))
+                let kill_count = pids
+                    .into_iter()
+                    .filter(|&pid| {
+                        pid != current_pid && (tracked_mihomo_pid <= 0 || pid != tracked_mihomo_pid)
+                    })
                     .map(|pid| {
                         println!("Found other mihomo process with PID: {}, stopping it", pid);
                         match process::kill_process(pid) {
@@ -248,14 +271,14 @@ impl CoreManager {
                     })
                     .filter(|&success| success)
                     .count();
-                    
+
                 println!("Successfully stopped {} mihomo processes", kill_count);
             }
             Err(e) => {
                 eprintln!("Error finding mihomo processes: {}", e);
             }
         }
-        
+
         Ok(())
     }
 
